@@ -54,7 +54,7 @@ jobs:
 
       - name: CLI smoke test
         run: |
-          cli="dotnet samples/Cnab.Cli/bin/Release/net8.0/cnab.dll"
+          cli="dotnet samples/Cnab.Cli/bin/Release/net8.0/Cnab.Cli.dll"
           $cli inspect testdata/retorno_341.ret
           $cli inspect --json testdata/remessa_341.rem
           $cli inspect testdata/remessa_237.rem
