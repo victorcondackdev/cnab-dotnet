@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Cnab</RootNamespace>
+    <AssemblyName>Cnab</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <PropertyGroup Label="NuGet">
+    <PackageId>Cnab</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Victor Condack</Authors>
+    <Description>Zero-dependency codec for FEBRABAN CNAB 240 and CNAB 400 files: attribute-driven fixed-width records with layout self-validation, CNAB 240 cobranca segments P, Q, R, T and U, structural parsing with trailer checks, writing with regenerated counts and sequences, a fluent remessa builder and retorno reconciliation. Parity-tested against the Go implementation.</Description>
+    <PackageTags>cnab;cnab240;cnab400;febraban;boleto;remessa;retorno;brazil;banking</PackageTags>
+    <RepositoryUrl>https://github.com/victorcondackdev/cnab-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/victorcondackdev/cnab-dotnet</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) 2026 Victor Condack</Copyright>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Cnab.Tests" />
+  </ItemGroup>
+
+</Project>

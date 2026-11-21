@@ -1,0 +1,8 @@
+# Source files are normalized to LF.
+* text=auto eol=lf
+
+# CNAB samples are byte-exact fixtures (CRLF line endings, fixed widths):
+# never let git touch them.
+testdata/** -text
+*.rem -text
+*.ret -text

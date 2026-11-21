@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build:
+    name: Build, test and pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: SDK info
+        run: dotnet --info
+
+      - name: Restore
+        run: dotnet restore Cnab.sln
+
+      # Builds the library, tests, CLI sample and benchmarks (benchmarks are
+      # compiled here but not run).
+      - name: Build (warnings are errors)
+        run: dotnet build Cnab.sln -c Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test tests/Cnab.Tests/Cnab.Tests.csproj -c Release --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory TestResults
+          --logger "trx;LogFileName=results.trx"
+          --logger "console;verbosity=normal"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+          if-no-files-found: ignore
+
+      - name: CLI smoke test
+        run: |
+          cli="dotnet samples/Cnab.Cli/bin/Release/net8.0/cnab.dll"
+          $cli inspect testdata/retorno_341.ret
+          $cli inspect --json testdata/remessa_341.rem
+          $cli inspect testdata/remessa_237.rem
+          $cli validate --totals testdata/remessa_341.rem testdata/retorno_341.ret testdata/remessa_237.rem
+          $cli reconcile --expected testdata/expected.csv testdata/retorno_341.ret
+          $cli reconcile --json --grace-days 3 --expected testdata/expected.csv testdata/retorno_341.ret > /dev/null
+          if $cli reconcile --strict --expected testdata/expected.csv testdata/retorno_341.ret > /dev/null; then
+            echo "--strict should fail on the sample retorno" >&2
+            exit 1
+          fi
+
+      - name: Pack
+        run: dotnet pack src/Cnab/Cnab.csproj -c Release --no-build -o artifacts
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget
+          path: artifacts/*nupkg
+          if-no-files-found: error
+
+      - name: Check formatting
+        continue-on-error: true
+        run: dotnet format Cnab.sln --verify-no-changes --no-restore --verbosity diagnostic
+
+  trimming:
+    name: Trimming smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # IsAotCompatible enables the trim, AOT and single-file analyzers during the
+      # normal build; publishing a trimmed console app that parses and writes a file
+      # additionally proves the reflection-based codec keeps working once trimmed.
+      - name: Publish trimmed consumer
+        run: |
+          mkdir -p /tmp/trimcheck && cd /tmp/trimcheck
+          dotnet new console --force -o . -n TrimCheck
+          dotnet add reference "$GITHUB_WORKSPACE/src/Cnab/Cnab.csproj"
+          cat > Program.cs <<'CS'
+          using var input = System.IO.File.OpenRead(args[0]);
+          var file = Cnab.CnabFile.Parse(input);
+          var output = new System.IO.MemoryStream();
+          Cnab.CnabWriter.Default.Write(file, output);
+          input.Position = 0;
+          var original = new System.IO.MemoryStream();
+          input.CopyTo(original);
+          bool same = original.ToArray().AsSpan().SequenceEqual(output.ToArray());
+          System.Console.WriteLine($"{file.Batches.Count} batch(es), {file.Ocorrencias().Count} occurrence(s), round trip {(same ? "ok" : "FAILED")}");
+          return same ? 0 : 1;
+          CS
+          dotnet publish -c Release -r linux-x64 --self-contained -p:PublishTrimmed=true -p:TreatWarningsAsErrors=true -o out
+          ./out/TrimCheck "$GITHUB_WORKSPACE/testdata/retorno_341.ret"
+
+  parity:
+    name: Regenerate Go parity vectors
+    runs-on: ubuntu-latest
+    # Requires the Go implementation to be reachable; informative until it is public.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: cnab-dotnet
+
+      - uses: actions/checkout@v4
+        with:
+          repository: victorcondackdev/cnab-go
+          path: cnab-go
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cnab-go/go.mod
+
+      - name: Vectors are up to date
+        working-directory: cnab-dotnet
+        run: |
+          go -C tools/vecgen run . > tests/Cnab.Tests/Parity/GoVectors.g.cs
+          git diff --exit-code -- tests/Cnab.Tests/Parity/GoVectors.g.cs
