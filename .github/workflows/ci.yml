@@ -128,7 +128,7 @@ jobs:
           repository: victorcondackdev/cnab-go
           path: cnab-go
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: cnab-go/go.mod
 
